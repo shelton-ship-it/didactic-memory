@@ -1,0 +1,53 @@
+name: Android Build
+
+# Layout "repo novo": o projeto Android está na RAIZ do repo
+# (settings.gradle.kts, build.gradle.kts, app/ ao lado de .github/).
+# Este ficheiro vai em .github/workflows/android-build.yml.
+#
+# Só corre à mão (Actions -> Android Build -> Run workflow) para não
+# acumular builds falhados a cada push.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # `packages` explícito, SEM o pacote legado `tools` (o default do
+      # setup-android@v3 inclui-o e o sdkmanager falha com exit code 1).
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12266719
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compile Kotlin (debug)
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: gradle :app:compileDebugKotlin --no-daemon
+
+      - name: Assemble debug APK
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: gradle assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixgo-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
